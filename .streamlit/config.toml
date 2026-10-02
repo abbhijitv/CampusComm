@@ -1,4 +1,6 @@
 [theme]
+base = "dark"
+
 font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
 baseFontSize = 17
 baseRadius = "12px"
@@ -8,6 +10,13 @@ headingFontWeights = [800, 700, 650, 600]
 metricValueFontSize = "2.4rem"
 metricValueFontWeight = 700
 showWidgetBorder = true
+
+primaryColor = "#818CF8"
+backgroundColor = "#0E1320"
+secondaryBackgroundColor = "#171E2E"
+textColor = "#E8EAF0"
+borderColor = "#2A3346"
+linkColor = "#A5B4FC"
 
 [theme.light]
 primaryColor = "#4F46E5"
