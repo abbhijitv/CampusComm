@@ -1,0 +1,47 @@
+REPORT_ID,CREATED_AT,REPORT_TEXT,LOCATION,CATEGORY,SUBCATEGORY,SEVERITY,SUMMARY,STATUS
+1,2026-09-29 10:15:00,Restroom on the first floor of Noble is out of soap.,Noble Library,Facilities,Plumbing,LOW,First-floor restroom at Noble Library is out of soap.,Resolved
+2,2026-09-29 14:30:00,"AC in my Tooker room isn't working, it's 85 degrees in here.",Tooker House,Facilities,HVAC,MEDIUM,Air conditioning not working in a Tooker House dorm room.,Resolved
+3,2026-09-29 17:45:00,Light rail delayed 20 minutes at Veterans Way/College.,Veterans Way/College Ave Station,Transportation,Light Rail,MEDIUM,Light rail running about 20 minutes late at Veterans Way/College.,Resolved
+4,2026-09-29 21:10:00,"Several lights are out along Palm Walk, it's really dark walking home at night.",Palm Walk,Safety,Lighting,HIGH,"Multiple lights out along Palm Walk, creating a dark walkway at night.",Open
+5,2026-09-30 09:20:00,Printer in the Brickyard computer lab is jammed.,Brickyard,Technology,Printer,LOW,Printer in the Brickyard computer lab is jammed.,Resolved
+6,2026-09-30 10:00:00,Hayden printers are out of paper again.,Hayden Library,Technology,Printer,LOW,Printers at Hayden Library are out of paper.,Resolved
+7,2026-09-30 11:00:00,Two treadmills at the SDFC are broken.,Sun Devil Fitness Complex,Facilities,Equipment,LOW,Two treadmills at the Sun Devil Fitness Complex are out of order.,Open
+8,2026-09-30 12:30:00,Barrett dining hall ran out of vegetarian options at lunch.,Barrett Dining Hall,Student Services,Dining,LOW,Barrett Dining Hall ran out of vegetarian options during lunch.,Resolved
+9,2026-09-30 13:40:00,Construction noise outside is making the Hayden quiet floor impossible to study on.,Hayden Library,Facilities,Noise,LOW,Construction noise is disrupting the quiet floor at Hayden Library.,Resolved
+10,2026-09-30 14:15:00,Automatic door button at Durham Hall doesn't work.,Durham Hall,Facilities,Accessibility,MEDIUM,Automatic door opener at Durham Hall is broken.,Open
+11,2026-09-30 15:05:00,"Classroom in Coor is freezing, the AC is on full blast.",Coor Hall,Facilities,HVAC,MEDIUM,A Coor Hall classroom is too cold due to overactive AC.,Resolved
+12,2026-09-30 16:50:00,Orbit Mercury shuttle skipped the stop by Lot 59.,Lot 59,Transportation,Shuttle,MEDIUM,Orbit Mercury shuttle skipped its Lot 59 stop.,Resolved
+13,2026-09-30 18:00:00,Our CSE 340 exam room in Neeb Hall was double-booked and the exam started 30 minutes late.,Neeb Hall,Academic,Exams,MEDIUM,Room double-booking delayed a CSE 340 exam in Neeb Hall by 30 minutes.,Resolved
+14,2026-10-01 07:30:00,Showers on the 5th floor of Manzanita have no hot water.,Manzanita Hall,Facilities,Plumbing,MEDIUM,No hot water in fifth-floor showers at Manzanita Hall.,Open
+15,2026-10-01 08:15:00,"Crosswalk signal at Rural and University isn't working, cars aren't stopping.",Rural Rd & University Dr,Safety,Traffic Signal,HIGH,Crosswalk signal at Rural Rd and University Dr is not working.,Open
+16,2026-10-01 10:10:00,Wait at the financial aid office is over an hour.,Student Services Building,Student Services,Financial Aid,LOW,Financial aid office wait times exceed one hour.,Open
+17,2026-10-01 10:40:00,"Projector in ECG G237 won't turn on, class started 15 minutes late.",Engineering Center G Wing,Technology,Classroom Technology,MEDIUM,"Projector in ECG G237 is not working, delaying class.",Resolved
+18,2026-10-01 11:25:00,Broken glass all over the sidewalk near Sun Devil Stadium.,Sun Devil Stadium,Safety,Hazard,MEDIUM,Broken glass on the sidewalk near Sun Devil Stadium.,Open
+19,2026-10-01 12:10:00,Card reader at the MU Starbucks isn't taking M&G.,Memorial Union,Student Services,Dining,LOW,Memorial Union Starbucks card reader is not accepting meal plan funds.,Open
+20,2026-10-01 13:00:00,"Canvas is loading really slowly, I can't open my quiz.",Online,Technology,Software,MEDIUM,Canvas is loading slowly and quizzes won't open.,Resolved
+21,2026-10-01 14:20:00,The ramp entrance at Nelson Fine Arts is blocked by parked scooters.,Nelson Fine Arts Center,Facilities,Accessibility,MEDIUM,Scooters are blocking the accessible ramp at Nelson Fine Arts Center.,Open
+22,2026-10-01 15:00:00,Wi-Fi feels slow in Hayden today.,Hayden Library,Technology,Wi-Fi,LOW,Slow Wi-Fi reported at Hayden Library.,Open
+23,2026-10-01 15:30:00,Parking meter on Tyler St took my coins and didn't add time.,Tyler Street,Transportation,Parking,LOW,Parking meter on Tyler Street is not registering payment.,Open
+24,2026-10-01 16:20:00,Elevator near the MU food court is out of service and I use a wheelchair.,Memorial Union,Facilities,Elevator,HIGH,Memorial Union elevator near the food court is out of service.,Open
+25,2026-10-01 19:40:00,Half the washers in the Hassayampa laundry room are broken.,Hassayampa Village,Facilities,Laundry,LOW,Several washing machines are broken in the Hassayampa laundry room.,Open
+26,2026-10-01 20:05:00,Someone in my group project submitted an AI-written section with citations to papers that don't exist.,Online,Academic,Academic Integrity,MEDIUM,Group project section allegedly contains fabricated AI-generated citations.,Open
+27,2026-10-01 21:30:00,"Still dark on Palm Walk, the lights haven't been fixed.",Palm Walk,Safety,Lighting,HIGH,Lights along Palm Walk remain out.,Open
+28,2026-10-01 22:15:00,My bike was stolen from the rack outside Tooker.,Tooker House,Safety,Security,MEDIUM,Bike stolen from the rack outside Tooker House.,Open
+29,2026-10-02 07:15:00,The Canvas page for MAT 266 is missing this week's lecture videos.,Online,Academic,Course Issues,LOW,MAT 266 Canvas page is missing this week's lecture videos.,Open
+30,2026-10-02 07:42:00,Line to get into the Apache garage is backed up onto the street.,Apache Parking Garage,Transportation,Entry Gate,MEDIUM,Entry line at Apache Parking Garage is backed up onto the street.,Open
+31,2026-10-02 07:55:00,"Apache garage gate isn't scanning permits, huge line.",Apache Parking Garage,Transportation,Entry Gate,MEDIUM,Apache Parking Garage gate is not scanning permits.,Open
+32,2026-10-02 08:00:00,"Bike racks outside Wexler are full, people are chaining bikes to the railings.",Wexler Hall,Transportation,Bike/Scooter,LOW,Bike racks at Wexler Hall are at capacity.,Open
+33,2026-10-02 08:10:00,Took 25 minutes to get into Apache Parking Garage this morning.,Apache Parking Garage,Transportation,Entry Gate,MEDIUM,25-minute wait to enter Apache Parking Garage.,Open
+34,2026-10-02 08:26:00,"Apache garage entrance gate is stuck again, traffic is backed up everywhere and I'm going to miss my exam.",Apache Parking Garage,Transportation,Entry Gate,HIGH,"Apache Parking Garage gate stuck, causing traffic backups.",Open
+35,2026-10-02 08:40:00,Wi-Fi is spotty in the Noble basement.,Noble Library,Technology,Wi-Fi,MEDIUM,Intermittent Wi-Fi in the Noble Library basement.,Open
+36,2026-10-02 09:05:00,"MU elevator is still broken, there's no way for me to get to the second floor.",Memorial Union,Facilities,Elevator,HIGH,"Memorial Union elevator still out, blocking second-floor access.",Open
+37,2026-10-02 09:10:00,Light rail was so packed I couldn't board at Veterans Way.,Veterans Way/College Ave Station,Transportation,Light Rail,MEDIUM,Overcrowded light rail at Veterans Way/College station.,Open
+38,2026-10-02 09:52:00,Wi-Fi isn't working at Hayden.,Hayden Library,Technology,Wi-Fi,HIGH,Wi-Fi is not working at Hayden Library.,Open
+39,2026-10-02 10:05:00,Internet keeps disconnecting on the second floor of Hayden.,Hayden Library,Technology,Wi-Fi,HIGH,Internet repeatedly disconnecting on Hayden Library's second floor.,Open
+40,2026-10-02 10:18:00,I can't connect to the Hayden wireless network at all.,Hayden Library,Technology,Wi-Fi,HIGH,Unable to connect to the wireless network at Hayden Library.,Open
+41,2026-10-02 10:31:00,Hayden internet has been down for 20 minutes.,Hayden Library,Technology,Wi-Fi,HIGH,Hayden Library internet has been down for about 20 minutes.,Open
+42,2026-10-02 10:47:00,Wi-Fi stopped working while I was studying in Hayden and I lost my draft.,Hayden Library,Technology,Wi-Fi,HIGH,"Wi-Fi dropped at Hayden Library, causing lost student work.",Open
+43,2026-10-02 10:50:00,The IT help desk line is really long right now.,Computing Commons,Technology,IT Help Desk,LOW,Long wait at the Computing Commons IT help desk.,Open
+44,2026-10-02 11:00:00,Water fountain near Hayden Lawn isn't working.,Hayden Lawn,Facilities,Water Fountain,LOW,Water fountain at Hayden Lawn is not working.,Open
+45,2026-10-02 11:12:00,ASU Wi-Fi in Hayden says connected but there's no internet.,Hayden Library,Technology,Wi-Fi,HIGH,Hayden Library Wi-Fi shows connected but has no internet access.,Open
+46,2026-10-02 11:38:00,The whole 2nd floor of Hayden can't get online and my assignment is due at noon.,Hayden Library,Technology,Wi-Fi,CRITICAL,Entire second floor of Hayden Library is offline ahead of deadlines.,Open
