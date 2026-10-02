@@ -1,0 +1,26 @@
+[theme]
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+baseFontSize = 17
+baseRadius = "12px"
+buttonRadius = "10px"
+headingFontSizes = ["2.6rem", "1.75rem", "1.4rem", "1.2rem"]
+headingFontWeights = [800, 700, 650, 600]
+metricValueFontSize = "2.4rem"
+metricValueFontWeight = 700
+showWidgetBorder = true
+
+[theme.light]
+primaryColor = "#4F46E5"
+backgroundColor = "#F6F7FB"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#111827"
+borderColor = "#E3E6EE"
+linkColor = "#4F46E5"
+
+[theme.dark]
+primaryColor = "#818CF8"
+backgroundColor = "#0E1320"
+secondaryBackgroundColor = "#171E2E"
+textColor = "#E8EAF0"
+borderColor = "#2A3346"
+linkColor = "#A5B4FC"
