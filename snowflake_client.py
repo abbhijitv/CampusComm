@@ -27,8 +27,11 @@ DEPARTMENT_ROUTES = {
 
 def get_department_for_category(category):
     """Return the department responsible for a report category."""
+
+    category = str(category).strip()
+
     return DEPARTMENT_ROUTES.get(
-        str(category).strip(),
+        category,
         "Campus Operations",
     )
 
@@ -93,6 +96,7 @@ def save_report(
         )
 
         conn.commit()
+
         return True
 
     finally:
@@ -119,7 +123,9 @@ def get_recent_reports(limit=100):
             SUMMARY,
             STATUS
         FROM CAMPUS_REPORTS
-        WHERE UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
+        WHERE UPPER(
+            COALESCE(STATUS, 'ACTIVE')
+        ) = 'ACTIVE'
         ORDER BY CREATED_AT DESC
         LIMIT %s
         """
@@ -153,6 +159,10 @@ def get_recent_reports(limit=100):
         conn.close()
 
 
+# ============================================================
+# Dashboard statistics
+# ============================================================
+
 def get_dashboard_stats():
     """Return statistics used by the Streamlit dashboard."""
 
@@ -165,29 +175,43 @@ def get_dashboard_stats():
             COUNT(*) AS TOTAL,
 
             COUNT_IF(
-                CAST(CREATED_AT AS DATE) = CURRENT_DATE()
+                CAST(CREATED_AT AS DATE)
+                = CURRENT_DATE()
             ) AS TODAY,
 
             COUNT_IF(
-                UPPER(SEVERITY) IN ('HIGH', 'CRITICAL')
+                UPPER(SEVERITY)
+                IN ('HIGH', 'CRITICAL')
             ) AS HIGH_SEVERITY,
 
             COUNT(
-                DISTINCT NULLIF(TRIM(LOCATION), '')
+                DISTINCT NULLIF(
+                    TRIM(LOCATION),
+                    ''
+                )
             ) AS LOCATIONS,
 
             COUNT_IF(
-                UPPER(SEVERITY) = 'CRITICAL'
+                UPPER(SEVERITY)
+                = 'CRITICAL'
             ) AS CRITICAL,
 
             COUNT_IF(
-                UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
+                UPPER(
+                    COALESCE(
+                        STATUS,
+                        'ACTIVE'
+                    )
+                ) = 'ACTIVE'
             ) AS ACTIVE
 
         FROM CAMPUS_REPORTS
 
         WHERE UPPER(
-            COALESCE(STATUS, 'ACTIVE')
+            COALESCE(
+                STATUS,
+                'ACTIVE'
+            )
         ) = 'ACTIVE'
         """
 
@@ -210,26 +234,37 @@ def get_dashboard_stats():
 
 
 # ============================================================
-# Incidents
+# Incident synchronization
 # ============================================================
 
 def sync_incidents(issues_df):
     """
     Synchronize detected dashboard issues into INCIDENTS.
 
-    An incident is uniquely identified for the demo by:
+    Each unique incident is identified by:
+
         LOCATION + CATEGORY + SUBCATEGORY
 
-    Existing incidents are updated with the newest severity,
-    report count, title, and summary.
+    This allows multiple incidents to exist inside the same category.
 
-    New issue clusters create new incidents.
+    Example:
 
-    Resolved incidents stay resolved unless a newer report arrives
-    after they were resolved, in which case the incident is reopened.
+        Technology:
+            Hayden Library — Wi-Fi
+            Memorial Union — Security
+
+    Both remain separate incidents and both are routed to IT Support.
+
+    Existing incidents are updated rather than duplicated.
+
+    Resolved incidents are reopened if a newer report arrives after
+    the incident was resolved.
     """
 
-    if issues_df is None or issues_df.empty:
+    if (
+        issues_df is None
+        or issues_df.empty
+    ):
         return
 
     conn = get_connection()
@@ -239,42 +274,73 @@ def sync_incidents(issues_df):
         for _, issue in issues_df.iterrows():
 
             title = str(
-                issue.get("TITLE", "Campus Issue")
+                issue.get(
+                    "TITLE",
+                    "Campus Issue",
+                )
             ).strip()
 
             location = str(
-                issue.get("LOCATION", "Unknown Location")
+                issue.get(
+                    "LOCATION",
+                    "Unknown Location",
+                )
             ).strip()
 
             category = str(
-                issue.get("CATEGORY", "Other")
+                issue.get(
+                    "CATEGORY",
+                    "Other",
+                )
             ).strip()
 
             subcategory = str(
-                issue.get("SUBCATEGORY", "Other")
+                issue.get(
+                    "SUBCATEGORY",
+                    "Other",
+                )
             ).strip()
 
             severity = str(
-                issue.get("SEVERITY", "MEDIUM")
+                issue.get(
+                    "SEVERITY",
+                    "MEDIUM",
+                )
             ).strip().upper()
 
             report_count = int(
-                issue.get("REPORT_COUNT", 1)
+                issue.get(
+                    "REPORT_COUNT",
+                    1,
+                )
             )
 
             summary = str(
-                issue.get("SUMMARY", "")
+                issue.get(
+                    "SUMMARY",
+                    "",
+                )
             ).strip()
 
             last_reported = issue.get(
                 "LAST_REPORTED"
             )
 
-            department = get_department_for_category(
-                category
+            department = (
+                get_department_for_category(
+                    category
+                )
             )
 
-            # Find an existing incident for the same cluster.
+            # ------------------------------------------------
+            # Look for the same existing incident.
+            #
+            # IMPORTANT:
+            # Category alone is NOT enough.
+            #
+            # LOCATION + CATEGORY + SUBCATEGORY uniquely
+            # identifies the issue cluster for this demo.
+            # ------------------------------------------------
             cursor.execute(
                 """
                 SELECT
@@ -284,7 +350,10 @@ def sync_incidents(issues_df):
                 FROM INCIDENTS
                 WHERE LOCATION = %s
                   AND CATEGORY = %s
-                  AND COALESCE(SUBCATEGORY, 'Other') = %s
+                  AND COALESCE(
+                      SUBCATEGORY,
+                      'Other'
+                  ) = %s
                 ORDER BY CREATED_AT DESC
                 LIMIT 1
                 """,
@@ -297,17 +366,26 @@ def sync_incidents(issues_df):
 
             existing = cursor.fetchone()
 
+            # =================================================
+            # Existing incident
+            # =================================================
             if existing:
+
                 incident_id = existing[0]
+
                 current_status = (
-                    existing[1] or "NEW"
+                    existing[1]
+                    or "NEW"
                 ).upper()
+
                 resolved_at = existing[2]
 
                 new_status = current_status
 
-                # If a new report arrived after resolution,
-                # reopen the incident.
+                # ---------------------------------------------
+                # Reopen a resolved incident if a new report
+                # arrives after it was resolved.
+                # ---------------------------------------------
                 if (
                     current_status == "RESOLVED"
                     and resolved_at is not None
@@ -316,30 +394,43 @@ def sync_incidents(issues_df):
                     last_reported_ts = pd.Timestamp(
                         last_reported
                     )
+
                     resolved_ts = pd.Timestamp(
                         resolved_at
                     )
 
-                    if last_reported_ts > resolved_ts:
+                    if (
+                        last_reported_ts
+                        > resolved_ts
+                    ):
                         new_status = "NEW"
 
                 cursor.execute(
                     """
                     UPDATE INCIDENTS
                     SET
-                        UPDATED_AT = CURRENT_TIMESTAMP(),
+                        UPDATED_AT =
+                            CURRENT_TIMESTAMP(),
+
                         TITLE = %s,
+
                         SEVERITY = %s,
+
                         REPORT_COUNT = %s,
+
                         SUMMARY = %s,
+
                         ASSIGNED_DEPARTMENT = %s,
+
                         STATUS = %s,
+
                         RESOLVED_AT =
                             CASE
                                 WHEN %s = 'NEW'
-                                THEN NULL
+                                    THEN NULL
                                 ELSE RESOLVED_AT
                             END
+
                     WHERE INCIDENT_ID = %s
                     """,
                     (
@@ -354,7 +445,11 @@ def sync_incidents(issues_df):
                     ),
                 )
 
+            # =================================================
+            # New incident
+            # =================================================
             else:
+
                 cursor.execute(
                     """
                     INSERT INTO INCIDENTS (
@@ -369,8 +464,15 @@ def sync_incidents(issues_df):
                         STATUS
                     )
                     VALUES (
-                        %s, %s, %s, %s, %s,
-                        %s, %s, %s, 'NEW'
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        'NEW'
                     )
                     """,
                     (
@@ -392,8 +494,12 @@ def sync_incidents(issues_df):
         conn.close()
 
 
+# ============================================================
+# All incidents
+# ============================================================
+
 def get_incidents():
-    """Return all incidents."""
+    """Return all campus incidents."""
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -415,8 +521,11 @@ def get_incidents():
             STATUS,
             ACKNOWLEDGED_AT,
             RESOLVED_AT
+
         FROM INCIDENTS
+
         ORDER BY
+
             CASE UPPER(SEVERITY)
                 WHEN 'CRITICAL' THEN 1
                 WHEN 'HIGH' THEN 2
@@ -424,6 +533,7 @@ def get_incidents():
                 WHEN 'LOW' THEN 4
                 ELSE 5
             END,
+
             UPDATED_AT DESC
         """
 
@@ -458,7 +568,13 @@ def get_incidents():
         conn.close()
 
 
-def get_department_incidents(department):
+# ============================================================
+# Department incidents
+# ============================================================
+
+def get_department_incidents(
+    department,
+):
     """Return incidents routed to one department."""
 
     conn = get_connection()
@@ -481,9 +597,13 @@ def get_department_incidents(department):
             STATUS,
             ACKNOWLEDGED_AT,
             RESOLVED_AT
+
         FROM INCIDENTS
+
         WHERE ASSIGNED_DEPARTMENT = %s
+
         ORDER BY
+
             CASE UPPER(SEVERITY)
                 WHEN 'CRITICAL' THEN 1
                 WHEN 'HIGH' THEN 2
@@ -491,6 +611,7 @@ def get_department_incidents(department):
                 WHEN 'LOW' THEN 4
                 ELSE 5
             END,
+
             UPDATED_AT DESC
         """
 
@@ -528,6 +649,10 @@ def get_department_incidents(department):
         conn.close()
 
 
+# ============================================================
+# Department status updates
+# ============================================================
+
 def update_incident_status(
     incident_id,
     new_status,
@@ -541,11 +666,16 @@ def update_incident_status(
         "RESOLVED",
     }
 
-    new_status = str(
-        new_status
-    ).strip().upper()
+    new_status = (
+        str(new_status)
+        .strip()
+        .upper()
+    )
 
-    if new_status not in allowed_statuses:
+    if (
+        new_status
+        not in allowed_statuses
+    ):
         raise ValueError(
             f"Invalid incident status: {new_status}"
         )
@@ -554,73 +684,119 @@ def update_incident_status(
     cursor = conn.cursor()
 
     try:
-        if new_status == "ACKNOWLEDGED":
+
+        # ----------------------------------------------------
+        # ACKNOWLEDGED
+        # ----------------------------------------------------
+        if (
+            new_status
+            == "ACKNOWLEDGED"
+        ):
+
             cursor.execute(
                 """
                 UPDATE INCIDENTS
                 SET
                     STATUS = 'ACKNOWLEDGED',
-                    UPDATED_AT = CURRENT_TIMESTAMP(),
+
+                    UPDATED_AT =
+                        CURRENT_TIMESTAMP(),
+
                     ACKNOWLEDGED_AT =
                         COALESCE(
                             ACKNOWLEDGED_AT,
                             CURRENT_TIMESTAMP()
                         )
+
                 WHERE INCIDENT_ID = %s
                 """,
                 (incident_id,),
             )
 
-        elif new_status == "IN_PROGRESS":
+        # ----------------------------------------------------
+        # IN PROGRESS
+        # ----------------------------------------------------
+        elif (
+            new_status
+            == "IN_PROGRESS"
+        ):
+
             cursor.execute(
                 """
                 UPDATE INCIDENTS
                 SET
                     STATUS = 'IN_PROGRESS',
-                    UPDATED_AT = CURRENT_TIMESTAMP(),
+
+                    UPDATED_AT =
+                        CURRENT_TIMESTAMP(),
+
                     ACKNOWLEDGED_AT =
                         COALESCE(
                             ACKNOWLEDGED_AT,
                             CURRENT_TIMESTAMP()
                         )
+
                 WHERE INCIDENT_ID = %s
                 """,
                 (incident_id,),
             )
 
-        elif new_status == "RESOLVED":
+        # ----------------------------------------------------
+        # RESOLVED
+        # ----------------------------------------------------
+        elif (
+            new_status
+            == "RESOLVED"
+        ):
+
             cursor.execute(
                 """
                 UPDATE INCIDENTS
                 SET
                     STATUS = 'RESOLVED',
-                    UPDATED_AT = CURRENT_TIMESTAMP(),
+
+                    UPDATED_AT =
+                        CURRENT_TIMESTAMP(),
+
                     ACKNOWLEDGED_AT =
                         COALESCE(
                             ACKNOWLEDGED_AT,
                             CURRENT_TIMESTAMP()
                         ),
-                    RESOLVED_AT = CURRENT_TIMESTAMP()
+
+                    RESOLVED_AT =
+                        CURRENT_TIMESTAMP()
+
                 WHERE INCIDENT_ID = %s
                 """,
                 (incident_id,),
             )
 
+        # ----------------------------------------------------
+        # NEW / RESET
+        # ----------------------------------------------------
         else:
+
             cursor.execute(
                 """
                 UPDATE INCIDENTS
                 SET
                     STATUS = 'NEW',
-                    UPDATED_AT = CURRENT_TIMESTAMP(),
+
+                    UPDATED_AT =
+                        CURRENT_TIMESTAMP(),
+
                     ACKNOWLEDGED_AT = NULL,
+
                     RESOLVED_AT = NULL
+
                 WHERE INCIDENT_ID = %s
                 """,
                 (incident_id,),
             )
 
         conn.commit()
+
         return True
 
     finally:
@@ -633,7 +809,9 @@ def update_incident_status(
 # ============================================================
 
 if __name__ == "__main__":
+
     try:
+
         conn = get_connection()
 
         print(
@@ -643,7 +821,9 @@ if __name__ == "__main__":
         conn.close()
 
     except Exception as e:
+
         print(
             "❌ Snowflake connection failed:"
         )
+
         print(e)

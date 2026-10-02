@@ -6,6 +6,10 @@ from typing import Optional
 import pandas as pd
 
 
+# ============================================================
+# Constants
+# ============================================================
+
 SEVERITY_ORDER = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 DEMO_DATA_PATH = Path(__file__).parent / "data" / "campus_reports.csv"
@@ -23,10 +27,18 @@ ISSUE_COLUMNS = [
 ]
 
 
+# ============================================================
+# Demo data
+# ============================================================
+
 def load_demo_reports(path=DEMO_DATA_PATH) -> pd.DataFrame:
     """Load local CSV demo reports."""
     return _prepare(pd.read_csv(path))
 
+
+# ============================================================
+# Emerging issue detection
+# ============================================================
 
 def detect_emerging_issues(
     reports_df: pd.DataFrame,
@@ -35,16 +47,25 @@ def detect_emerging_issues(
     now: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
     """
-    Turn reports into dashboard issues.
+    Turn individual campus reports into grouped dashboard issues.
 
     Reports are grouped by:
-        location + category + subcategory
 
-    This prevents unrelated problems at the same location from being
-    merged together.
+        LOCATION + CATEGORY + SUBCATEGORY
 
-    The strongest issue from each category is returned so the dashboard
-    stays organized and displays at most one card per category.
+    This means related reports become one incident while unrelated
+    problems remain separate.
+
+    Example:
+
+        5 Safety / Fire reports at Hayden Library
+            -> one Hayden Library — Fire issue with 5 reports
+
+        1 Technology / Wi-Fi report at Hayden Library
+            -> separate Hayden Library — Wi-Fi issue
+
+    Every valid recent report is represented in an issue as long as
+    min_reports is 1.
     """
 
     df = _prepare(reports_df)
@@ -52,17 +73,23 @@ def detect_emerging_issues(
     if df.empty:
         return pd.DataFrame(columns=ISSUE_COLUMNS)
 
-    # Ignore rows without valid timestamps.
+    # Ignore reports that do not have a valid timestamp.
     df = df.dropna(subset=["CREATED_AT"])
 
     if df.empty:
         return pd.DataFrame(columns=ISSUE_COLUMNS)
 
+    # Use newest report as the reference point unless a specific
+    # "now" timestamp is supplied.
     if now is None:
         now = df["CREATED_AT"].max()
+    else:
+        now = pd.Timestamp(now)
 
+    # Only consider reports inside the selected time window.
     recent = df[
-        df["CREATED_AT"] >= now - pd.Timedelta(hours=window_hours)
+        df["CREATED_AT"]
+        >= now - pd.Timedelta(hours=window_hours)
     ].copy()
 
     if recent.empty:
@@ -70,33 +97,69 @@ def detect_emerging_issues(
 
     issues = []
 
+    # --------------------------------------------------------
+    # Group related reports.
+    #
     # IMPORTANT:
-    # Include SUBCATEGORY so Fire, Wi-Fi, Equipment, etc.
-    # do not accidentally get merged.
-    for (location, category, subcategory), group in recent.groupby(
-        ["LOCATION", "CATEGORY", "SUBCATEGORY"],
+    # We group by location + category + subcategory.
+    #
+    # We DO NOT reduce this to one issue per category.
+    # Otherwise legitimate reports can disappear from the
+    # dashboard.
+    # --------------------------------------------------------
+    grouped = recent.groupby(
+        [
+            "LOCATION",
+            "CATEGORY",
+            "SUBCATEGORY",
+        ],
         dropna=False,
-    ):
+    )
+
+    for (
+        location,
+        category,
+        subcategory,
+    ), group in grouped:
+
         if len(group) < min_reports:
             continue
 
-        location = _clean_value(location, "Unknown Location")
-        category = _clean_value(category, "Other")
-        subcategory = _clean_value(subcategory, "Other")
+        location = _clean_value(
+            location,
+            "Unknown Location",
+        )
 
-        severity = _highest_severity(group["SEVERITY"])
+        category = _clean_value(
+            category,
+            "Other",
+        )
 
-        # Most recent report is used for the card summary.
-        latest = group.sort_values(
+        subcategory = _clean_value(
+            subcategory,
+            "Other",
+        )
+
+        # Use the highest severity from all reports in this issue.
+        severity = _highest_severity(
+            group["SEVERITY"]
+        )
+
+        # Sort newest first so we can use the most recent
+        # report's summary on the card.
+        sorted_group = group.sort_values(
             "CREATED_AT",
             ascending=False,
-        ).iloc[0]
+        )
+
+        latest = sorted_group.iloc[0]
 
         summary = _clean_value(
             latest.get("SUMMARY", ""),
             "",
         )
 
+        # Fall back to report text if summary is missing.
         if not summary:
             summary = _clean_value(
                 latest.get("REPORT_TEXT", ""),
@@ -105,71 +168,66 @@ def detect_emerging_issues(
 
         issues.append(
             {
-                "TITLE": f"{location} — {subcategory}",
+                "TITLE": (
+                    f"{location} — {subcategory}"
+                ),
                 "LOCATION": location,
                 "CATEGORY": category,
                 "SUBCATEGORY": subcategory,
                 "SEVERITY": severity,
                 "REPORT_COUNT": len(group),
                 "SUMMARY": summary,
-                "FIRST_REPORTED": group["CREATED_AT"].min(),
-                "LAST_REPORTED": group["CREATED_AT"].max(),
+                "FIRST_REPORTED": (
+                    group["CREATED_AT"].min()
+                ),
+                "LAST_REPORTED": (
+                    group["CREATED_AT"].max()
+                ),
             }
         )
 
     if not issues:
-        return pd.DataFrame(columns=ISSUE_COLUMNS)
+        return pd.DataFrame(
+            columns=ISSUE_COLUMNS
+        )
 
     result = pd.DataFrame(
         issues,
         columns=ISSUE_COLUMNS,
     )
 
-    # Convert severity into a sortable numeric rank.
+    # --------------------------------------------------------
+    # Severity ranking
+    #
+    # LOW      = 0
+    # MEDIUM   = 1
+    # HIGH     = 2
+    # CRITICAL = 3
+    # --------------------------------------------------------
+    severity_rank = {
+        severity: index
+        for index, severity
+        in enumerate(SEVERITY_ORDER)
+    }
+
     result["_SEVERITY_RANK"] = (
         result["SEVERITY"]
-        .map({
-            name: i
-            for i, name in enumerate(SEVERITY_ORDER)
-        })
+        .map(severity_rank)
         .fillna(0)
     )
 
-    # ---------------------------------------------------------
-    # Keep ONE representative issue per category.
+    # --------------------------------------------------------
+    # Sort dashboard issues.
     #
     # Priority:
     # 1. Highest severity
-    # 2. Most reports
-    # 3. Most recent report
-    # ---------------------------------------------------------
-    result = (
-        result
-        .sort_values(
-            [
-                "CATEGORY",
-                "_SEVERITY_RANK",
-                "REPORT_COUNT",
-                "LAST_REPORTED",
-            ],
-            ascending=[
-                True,
-                False,
-                False,
-                False,
-            ],
-        )
-        .drop_duplicates(
-            subset=["CATEGORY"],
-            keep="first",
-        )
-    )
-
-    # ---------------------------------------------------------
-    # Sort dashboard cards:
-    # CRITICAL -> HIGH -> MEDIUM -> LOW
-    # Then report count and recency.
-    # ---------------------------------------------------------
+    # 2. Largest number of reports
+    # 3. Most recently reported
+    #
+    # IMPORTANT:
+    # There is intentionally NO drop_duplicates(CATEGORY)
+    # here. Every unique issue remains represented.
+    # --------------------------------------------------------
     result = (
         result
         .sort_values(
@@ -184,24 +242,37 @@ def detect_emerging_issues(
                 False,
             ],
         )
-        .drop(columns="_SEVERITY_RANK")
+        .drop(
+            columns="_SEVERITY_RANK"
+        )
         .reset_index(drop=True)
     )
 
     return result
 
 
-def _prepare(reports_df: pd.DataFrame) -> pd.DataFrame:
+# ============================================================
+# Data preparation
+# ============================================================
+
+def _prepare(
+    reports_df: pd.DataFrame,
+) -> pd.DataFrame:
     """Normalize Snowflake or CSV report data."""
+
+    if reports_df is None:
+        return pd.DataFrame()
 
     df = reports_df.copy()
 
+    # Normalize column names.
     df.columns = [
-        str(c).upper()
-        for c in df.columns
+        str(column).upper()
+        for column in df.columns
     ]
 
-    # Make sure required columns always exist.
+    # Make sure every column required by the analytics
+    # pipeline exists.
     required_columns = [
         "CREATED_AT",
         "REPORT_TEXT",
@@ -212,41 +283,70 @@ def _prepare(reports_df: pd.DataFrame) -> pd.DataFrame:
         "SUMMARY",
     ]
 
-    for col in required_columns:
-        if col not in df.columns:
-            df[col] = ""
+    for column in required_columns:
+        if column not in df.columns:
+            df[column] = ""
 
     if df.empty:
         return df
 
+    # Normalize timestamps.
     df["CREATED_AT"] = pd.to_datetime(
         df["CREATED_AT"],
         errors="coerce",
     )
 
     # Normalize text columns.
-    for col in [
+    text_columns = [
         "REPORT_TEXT",
         "LOCATION",
         "CATEGORY",
         "SUBCATEGORY",
         "SEVERITY",
         "SUMMARY",
-    ]:
-        df[col] = df[col].fillna("").astype(str).str.strip()
+    ]
+
+    for column in text_columns:
+        df[column] = (
+            df[column]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
 
     # Normalize severity capitalization.
-    df["SEVERITY"] = df["SEVERITY"].str.upper()
+    df["SEVERITY"] = (
+        df["SEVERITY"]
+        .str.upper()
+    )
 
-    # Safe defaults.
-    df.loc[df["LOCATION"] == "", "LOCATION"] = "Unknown Location"
-    df.loc[df["CATEGORY"] == "", "CATEGORY"] = "Other"
-    df.loc[df["SUBCATEGORY"] == "", "SUBCATEGORY"] = "Other"
+    # Safe defaults for grouping.
+    df.loc[
+        df["LOCATION"] == "",
+        "LOCATION",
+    ] = "Unknown Location"
+
+    df.loc[
+        df["CATEGORY"] == "",
+        "CATEGORY",
+    ] = "Other"
+
+    df.loc[
+        df["SUBCATEGORY"] == "",
+        "SUBCATEGORY",
+    ] = "Other"
 
     return df
 
 
-def _clean_value(value, default: str) -> str:
+# ============================================================
+# Utility helpers
+# ============================================================
+
+def _clean_value(
+    value,
+    default: str,
+) -> str:
     """Convert missing/blank values into a safe display value."""
 
     if pd.isna(value):
@@ -254,19 +354,27 @@ def _clean_value(value, default: str) -> str:
 
     value = str(value).strip()
 
-    if not value or value.lower() == "nan":
+    if (
+        not value
+        or value.lower() == "nan"
+    ):
         return default
 
     return value
 
 
-def _highest_severity(severities: pd.Series) -> str:
-    """Return the highest valid severity in a group."""
+def _highest_severity(
+    severities: pd.Series,
+) -> str:
+    """Return the highest valid severity in a report group."""
 
     known = [
-        str(s).strip().upper()
-        for s in severities
-        if str(s).strip().upper() in SEVERITY_ORDER
+        str(severity).strip().upper()
+        for severity in severities
+        if (
+            str(severity).strip().upper()
+            in SEVERITY_ORDER
+        )
     ]
 
     if not known:
