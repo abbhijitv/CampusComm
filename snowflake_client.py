@@ -1,3 +1,5 @@
+"""Snowflake database helpers for Campus Comm."""
+
 import os
 
 import pandas as pd
@@ -10,6 +12,7 @@ load_dotenv()
 
 def get_connection():
     """Create a connection to the Campus Comm Snowflake database."""
+
     return snowflake.connector.connect(
         account=os.getenv("SNOWFLAKE_ACCOUNT"),
         user=os.getenv("SNOWFLAKE_USER"),
@@ -26,9 +29,13 @@ def save_report(
     category,
     subcategory,
     severity,
-    summary
+    summary,
 ):
-    """Save one analyzed campus report to Snowflake."""
+    """
+    Save one AI-classified campus report to Snowflake.
+
+    Returns True when the insert succeeds.
+    """
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -65,8 +72,13 @@ def save_report(
         conn.close()
 
 
-def get_recent_reports(limit=50):
-    """Return recent reports as a pandas DataFrame."""
+def get_recent_reports(limit=100):
+    """
+    Return recent reports as a pandas DataFrame.
+
+    The default is 100 so the AI and dashboard have enough recent
+    context while still keeping queries small.
+    """
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -84,11 +96,16 @@ def get_recent_reports(limit=50):
             SUMMARY,
             STATUS
         FROM CAMPUS_REPORTS
+        WHERE UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
         ORDER BY CREATED_AT DESC
         LIMIT %s
         """
 
-        cursor.execute(query, (limit,))
+        cursor.execute(
+            query,
+            (limit,),
+        )
+
         rows = cursor.fetchall()
 
         columns = [
@@ -103,7 +120,10 @@ def get_recent_reports(limit=50):
             "STATUS",
         ]
 
-        return pd.DataFrame(rows, columns=columns)
+        return pd.DataFrame(
+            rows,
+            columns=columns,
+        )
 
     finally:
         cursor.close()
@@ -111,7 +131,7 @@ def get_recent_reports(limit=50):
 
 
 def get_dashboard_stats():
-    """Return statistics needed by the Streamlit dashboard."""
+    """Return statistics used by the Streamlit dashboard."""
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -120,33 +140,60 @@ def get_dashboard_stats():
         query = """
         SELECT
             COUNT(*) AS TOTAL,
-            COUNT_IF(CAST(CREATED_AT AS DATE) = CURRENT_DATE()) AS TODAY,
-            COUNT_IF(SEVERITY = 'HIGH') AS HIGH,
-            COUNT_IF(SEVERITY = 'CRITICAL') AS CRITICAL,
-            COUNT_IF(STATUS = 'ACTIVE') AS ACTIVE
+
+            COUNT_IF(
+                CAST(CREATED_AT AS DATE) = CURRENT_DATE()
+            ) AS TODAY,
+
+            COUNT_IF(
+                UPPER(SEVERITY) IN ('HIGH', 'CRITICAL')
+            ) AS HIGH_SEVERITY,
+
+            COUNT(
+                DISTINCT NULLIF(TRIM(LOCATION), '')
+            ) AS LOCATIONS,
+
+            COUNT_IF(
+                UPPER(SEVERITY) = 'CRITICAL'
+            ) AS CRITICAL,
+
+            COUNT_IF(
+                UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
+            ) AS ACTIVE
+
         FROM CAMPUS_REPORTS
+
+        WHERE UPPER(
+            COALESCE(STATUS, 'ACTIVE')
+        ) = 'ACTIVE'
         """
 
         cursor.execute(query)
+
         row = cursor.fetchone()
 
         return {
-            "total": row[0],
-            "today": row[1],
-            "high": row[2],
-            "critical": row[3],
-            "active": row[4],
+            "total": row[0] or 0,
+            "today": row[1] or 0,
+            "high_severity": row[2] or 0,
+            "locations": row[3] or 0,
+            "critical": row[4] or 0,
+            "active": row[5] or 0,
         }
 
     finally:
         cursor.close()
         conn.close()
 
+
 if __name__ == "__main__":
     try:
         conn = get_connection()
+
         print("✅ Connected to Snowflake successfully!")
+
         conn.close()
+
     except Exception as e:
         print("❌ Snowflake connection failed:")
         print(e)

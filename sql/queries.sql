@@ -1,76 +1,642 @@
--- Campus Comm analytics queries
--- Run in CAMPUS_COMM_DB.PUBLIC. Thresholds match analytics.py:
--- 3+ reports, same location + category, within the last 24 hours.
+-- ============================================================
+-- CAMPUS COMM
+-- queries.sql
+--
+-- Read-only queries for testing, dashboard development,
+-- analytics, and demo verification.
+--
+-- Database creation and demo data belong in setup.sql.
+-- ============================================================
+
 
 USE DATABASE CAMPUS_COMM_DB;
 USE SCHEMA PUBLIC;
 
 
--- 1. Emerging issues
--- Uses the real clock. To test with demo data, replace CURRENT_TIMESTAMP()
--- with (SELECT MAX(CREATED_AT) FROM CAMPUS_REPORTS).
-WITH recent AS (
-    SELECT *
-    FROM CAMPUS_REPORTS
-    WHERE CREATED_AT >= DATEADD(hour, -24, CURRENT_TIMESTAMP())
-)
+-- ============================================================
+-- 1. ALL RECENT REPORTS
+-- Used by / similar to the Recent Reports section of the app
+-- ============================================================
+
 SELECT
-    LOCATION || ' ' || MODE(SUBCATEGORY) || ' Problems' AS TITLE,
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
     LOCATION,
     CATEGORY,
-    MODE(SUBCATEGORY) AS SUBCATEGORY,
-    CASE MAX(CASE SEVERITY
-                 WHEN 'LOW' THEN 1 WHEN 'MEDIUM' THEN 2
-                 WHEN 'HIGH' THEN 3 WHEN 'CRITICAL' THEN 4 END)
-        WHEN 1 THEN 'LOW' WHEN 2 THEN 'MEDIUM'
-        WHEN 3 THEN 'HIGH' WHEN 4 THEN 'CRITICAL'
-    END AS SEVERITY,
-    COUNT(*) AS REPORT_COUNT,
-    MIN(CREATED_AT) AS FIRST_REPORTED,
-    MAX(CREATED_AT) AS LAST_REPORTED
-FROM recent
-GROUP BY LOCATION, CATEGORY
-HAVING COUNT(*) >= 3
-ORDER BY REPORT_COUNT DESC, LAST_REPORTED DESC;
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY,
+    STATUS
+FROM CAMPUS_REPORTS
+ORDER BY CREATED_AT DESC;
 
 
--- 2. Dashboard headline numbers
+-- ============================================================
+-- 2. DASHBOARD STATISTICS
+--
+-- Verifies:
+-- Total Reports
+-- Reports Today
+-- High Severity
+-- Critical Reports
+-- Locations
+-- Active Reports
+-- ============================================================
+
 SELECT
     COUNT(*) AS TOTAL_REPORTS,
-    COUNT_IF(CREATED_AT >= DATEADD(hour, -24, CURRENT_TIMESTAMP())) AS LAST_24H,
-    COUNT_IF(STATUS = 'Open') AS OPEN_REPORTS,
-    COUNT_IF(SEVERITY IN ('HIGH', 'CRITICAL') AND STATUS = 'Open') AS OPEN_HIGH_SEVERITY
+
+    COUNT_IF(
+        CAST(CREATED_AT AS DATE) = CURRENT_DATE()
+    ) AS REPORTS_TODAY,
+
+    COUNT_IF(
+        UPPER(SEVERITY) IN ('HIGH', 'CRITICAL')
+    ) AS HIGH_SEVERITY,
+
+    COUNT_IF(
+        UPPER(SEVERITY) = 'CRITICAL'
+    ) AS CRITICAL_REPORTS,
+
+    COUNT(
+        DISTINCT NULLIF(TRIM(LOCATION), '')
+    ) AS LOCATIONS,
+
+    COUNT_IF(
+        UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
+    ) AS ACTIVE_REPORTS
+
 FROM CAMPUS_REPORTS;
 
 
--- 3. Reports by category (last 7 days)
-SELECT CATEGORY, COUNT(*) AS REPORT_COUNT
+-- ============================================================
+-- 3. REPORT COUNT BY CATEGORY
+-- ============================================================
+
+SELECT
+    CATEGORY,
+    COUNT(*) AS REPORT_COUNT
 FROM CAMPUS_REPORTS
-WHERE CREATED_AT >= DATEADD(day, -7, CURRENT_TIMESTAMP())
 GROUP BY CATEGORY
-ORDER BY REPORT_COUNT DESC;
+ORDER BY REPORT_COUNT DESC, CATEGORY;
 
 
--- 4. Busiest locations (last 7 days)
-SELECT LOCATION, COUNT(*) AS REPORT_COUNT
+-- ============================================================
+-- 4. ALL 7 CATEGORIES INCLUDING ZERO-REPORT CATEGORIES
+--
+-- This is useful for verifying that the application supports:
+--
+-- Safety
+-- Technology
+-- Facilities
+-- Transportation
+-- Academic
+-- Student Services
+-- Other
+-- ============================================================
+
+WITH EXPECTED_CATEGORIES AS (
+    SELECT COLUMN1 AS CATEGORY
+    FROM VALUES
+        ('Safety'),
+        ('Technology'),
+        ('Facilities'),
+        ('Transportation'),
+        ('Academic'),
+        ('Student Services'),
+        ('Other')
+),
+
+REPORT_COUNTS AS (
+    SELECT
+        CATEGORY,
+        COUNT(*) AS REPORT_COUNT
+    FROM CAMPUS_REPORTS
+    GROUP BY CATEGORY
+)
+
+SELECT
+    E.CATEGORY,
+    COALESCE(R.REPORT_COUNT, 0) AS REPORT_COUNT
+FROM EXPECTED_CATEGORIES E
+LEFT JOIN REPORT_COUNTS R
+    ON E.CATEGORY = R.CATEGORY
+ORDER BY
+    CASE E.CATEGORY
+        WHEN 'Safety' THEN 1
+        WHEN 'Technology' THEN 2
+        WHEN 'Facilities' THEN 3
+        WHEN 'Transportation' THEN 4
+        WHEN 'Academic' THEN 5
+        WHEN 'Student Services' THEN 6
+        WHEN 'Other' THEN 7
+        ELSE 8
+    END;
+
+
+-- ============================================================
+-- 5. SAFETY REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY,
+    STATUS
 FROM CAMPUS_REPORTS
-WHERE CREATED_AT >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+WHERE CATEGORY = 'Safety'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 6. TECHNOLOGY REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE CATEGORY = 'Technology'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 7. FACILITIES REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE CATEGORY = 'Facilities'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 8. TRANSPORTATION REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE CATEGORY = 'Transportation'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 9. ACADEMIC REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE CATEGORY = 'Academic'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 10. STUDENT SERVICES REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE CATEGORY = 'Student Services'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 11. OTHER REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE CATEGORY = 'Other'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 12. HAYDEN LIBRARY REPORTS
+--
+-- Hayden can contain reports from multiple categories.
+-- For example:
+-- Safety -> Fire
+-- Technology -> Wi-Fi
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE LOCATION = 'Hayden Library'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 13. HIGH + CRITICAL REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE UPPER(SEVERITY) IN ('HIGH', 'CRITICAL')
+ORDER BY
+    CASE UPPER(SEVERITY)
+        WHEN 'CRITICAL' THEN 1
+        WHEN 'HIGH' THEN 2
+        ELSE 3
+    END,
+    CREATED_AT DESC;
+
+
+-- ============================================================
+-- 14. CRITICAL REPORTS ONLY
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE UPPER(SEVERITY) = 'CRITICAL'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 15. REPORT COUNT BY LOCATION
+-- ============================================================
+
+SELECT
+    LOCATION,
+    COUNT(*) AS REPORT_COUNT
+FROM CAMPUS_REPORTS
+WHERE LOCATION IS NOT NULL
+  AND TRIM(LOCATION) <> ''
 GROUP BY LOCATION
-ORDER BY REPORT_COUNT DESC
-LIMIT 10;
+ORDER BY REPORT_COUNT DESC, LOCATION;
 
 
--- 5. Reports per hour (last 24 hours), for a trend chart
-SELECT DATE_TRUNC('hour', CREATED_AT) AS HOUR, COUNT(*) AS REPORT_COUNT
+-- ============================================================
+-- 16. REPORT COUNT BY SEVERITY
+-- ============================================================
+
+SELECT
+    SEVERITY,
+    COUNT(*) AS REPORT_COUNT
 FROM CAMPUS_REPORTS
-WHERE CREATED_AT >= DATEADD(hour, -24, CURRENT_TIMESTAMP())
-GROUP BY HOUR
-ORDER BY HOUR;
+GROUP BY SEVERITY
+ORDER BY
+    CASE UPPER(SEVERITY)
+        WHEN 'CRITICAL' THEN 1
+        WHEN 'HIGH' THEN 2
+        WHEN 'MEDIUM' THEN 3
+        WHEN 'LOW' THEN 4
+        ELSE 5
+    END;
 
 
--- 6. Classify a report directly in SQL (same idea as ai.classify_report)
-SELECT AI_CLASSIFY(
-    'Wi-Fi keeps disconnecting on the second floor of Hayden.',
-    ['Safety', 'Technology', 'Facilities', 'Transportation',
-     'Academic', 'Student Services', 'Other']
-):labels[0]::STRING AS CATEGORY;
+-- ============================================================
+-- 17. REPORT COUNT BY CATEGORY + SUBCATEGORY
+-- ============================================================
+
+SELECT
+    CATEGORY,
+    SUBCATEGORY,
+    COUNT(*) AS REPORT_COUNT
+FROM CAMPUS_REPORTS
+GROUP BY
+    CATEGORY,
+    SUBCATEGORY
+ORDER BY
+    REPORT_COUNT DESC,
+    CATEGORY,
+    SUBCATEGORY;
+
+
+-- ============================================================
+-- 18. POTENTIAL EMERGING ISSUES
+--
+-- Groups reports by:
+-- Location + Category + Subcategory
+--
+-- Requires at least 2 reports in the same cluster.
+--
+-- NOTE:
+-- analytics.py remains responsible for the application's
+-- actual emerging-issue detection.
+-- ============================================================
+
+SELECT
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+
+    COUNT(*) AS REPORT_COUNT,
+
+    COUNT_IF(
+        UPPER(SEVERITY) = 'CRITICAL'
+    ) AS CRITICAL_REPORTS,
+
+    COUNT_IF(
+        UPPER(SEVERITY) = 'HIGH'
+    ) AS HIGH_REPORTS,
+
+    MAX(CREATED_AT) AS LATEST_REPORT
+
+FROM CAMPUS_REPORTS
+
+WHERE UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
+
+GROUP BY
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY
+
+HAVING COUNT(*) >= 2
+
+ORDER BY
+    REPORT_COUNT DESC,
+    LATEST_REPORT DESC;
+
+
+-- ============================================================
+-- 19. HAYDEN FIRE DEMO REPORTS
+--
+-- This should show the multiple related reports used in the
+-- main Campus Comm presentation scenario.
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+WHERE LOCATION = 'Hayden Library'
+  AND CATEGORY = 'Safety'
+  AND SUBCATEGORY = 'Fire'
+ORDER BY CREATED_AT ASC;
+
+
+-- ============================================================
+-- 20. HAYDEN FIRE SUMMARY
+-- ============================================================
+
+SELECT
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+
+    COUNT(*) AS REPORT_COUNT,
+
+    COUNT_IF(
+        UPPER(SEVERITY) = 'CRITICAL'
+    ) AS CRITICAL_REPORTS,
+
+    COUNT_IF(
+        UPPER(SEVERITY) = 'HIGH'
+    ) AS HIGH_REPORTS,
+
+    MIN(CREATED_AT) AS FIRST_REPORT,
+    MAX(CREATED_AT) AS LATEST_REPORT
+
+FROM CAMPUS_REPORTS
+
+WHERE LOCATION = 'Hayden Library'
+  AND CATEGORY = 'Safety'
+  AND SUBCATEGORY = 'Fire'
+
+GROUP BY
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY;
+
+
+-- ============================================================
+-- 21. TODAY'S REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY,
+    STATUS
+FROM CAMPUS_REPORTS
+WHERE CAST(CREATED_AT AS DATE) = CURRENT_DATE()
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 22. ACTIVE REPORTS
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY,
+    STATUS
+FROM CAMPUS_REPORTS
+WHERE UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
+ORDER BY CREATED_AT DESC;
+
+
+-- ============================================================
+-- 23. MOST RECENT REPORT FROM EACH CATEGORY
+--
+-- This is especially useful for your presentation because
+-- every category can display one representative report.
+-- ============================================================
+
+SELECT
+    REPORT_ID,
+    CREATED_AT,
+    REPORT_TEXT,
+    LOCATION,
+    CATEGORY,
+    SUBCATEGORY,
+    SEVERITY,
+    SUMMARY
+FROM CAMPUS_REPORTS
+
+QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY CATEGORY
+    ORDER BY CREATED_AT DESC, REPORT_ID DESC
+) = 1
+
+ORDER BY
+    CASE CATEGORY
+        WHEN 'Safety' THEN 1
+        WHEN 'Technology' THEN 2
+        WHEN 'Facilities' THEN 3
+        WHEN 'Transportation' THEN 4
+        WHEN 'Academic' THEN 5
+        WHEN 'Student Services' THEN 6
+        WHEN 'Other' THEN 7
+        ELSE 8
+    END;
+
+
+-- ============================================================
+-- 24. DATABASE HEALTH CHECK
+--
+-- Quick check before your presentation.
+-- ============================================================
+
+SELECT
+    COUNT(*) AS TOTAL_REPORTS,
+
+    COUNT(DISTINCT CATEGORY) AS CATEGORY_COUNT,
+
+    COUNT(
+        DISTINCT NULLIF(TRIM(LOCATION), '')
+    ) AS LOCATION_COUNT,
+
+    COUNT_IF(
+        UPPER(SEVERITY) = 'CRITICAL'
+    ) AS CRITICAL_REPORTS,
+
+    COUNT_IF(
+        UPPER(SEVERITY) = 'HIGH'
+    ) AS HIGH_REPORTS,
+
+    MAX(CREATED_AT) AS LATEST_REPORT
+
+FROM CAMPUS_REPORTS;
+
+
+-- ============================================================
+-- 25. DEMO READINESS CHECK
+--
+-- Checks whether all 7 required categories have at least
+-- one report.
+--
+-- Expected result with the clean setup.sql:
+--
+-- MISSING_CATEGORIES
+-- 0
+-- ============================================================
+
+WITH EXPECTED_CATEGORIES AS (
+    SELECT COLUMN1 AS CATEGORY
+    FROM VALUES
+        ('Safety'),
+        ('Technology'),
+        ('Facilities'),
+        ('Transportation'),
+        ('Academic'),
+        ('Student Services'),
+        ('Other')
+),
+
+EXISTING_CATEGORIES AS (
+    SELECT DISTINCT CATEGORY
+    FROM CAMPUS_REPORTS
+)
+
+SELECT
+    COUNT_IF(X.CATEGORY IS NULL) AS MISSING_CATEGORIES
+FROM EXPECTED_CATEGORIES E
+LEFT JOIN EXISTING_CATEGORIES X
+    ON E.CATEGORY = X.CATEGORY;
+
+
+-- ============================================================
+-- 26. FINAL DEMO OVERVIEW
+--
+-- A compact overview of the data currently in Campus Comm.
+-- ============================================================
+
+SELECT
+    CATEGORY,
+    COUNT(*) AS REPORT_COUNT,
+    COUNT(DISTINCT LOCATION) AS LOCATIONS,
+    COUNT_IF(UPPER(SEVERITY) = 'CRITICAL') AS CRITICAL,
+    COUNT_IF(UPPER(SEVERITY) = 'HIGH') AS HIGH,
+    COUNT_IF(UPPER(SEVERITY) = 'MEDIUM') AS MEDIUM,
+    COUNT_IF(UPPER(SEVERITY) = 'LOW') AS LOW
+FROM CAMPUS_REPORTS
+GROUP BY CATEGORY
+ORDER BY
+    CASE CATEGORY
+        WHEN 'Safety' THEN 1
+        WHEN 'Technology' THEN 2
+        WHEN 'Facilities' THEN 3
+        WHEN 'Transportation' THEN 4
+        WHEN 'Academic' THEN 5
+        WHEN 'Student Services' THEN 6
+        WHEN 'Other' THEN 7
+        ELSE 8
+    END;
