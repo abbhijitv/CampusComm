@@ -67,7 +67,7 @@ CATEGORY_ICONS = {
     "Other": "📌",
 }
 
-SEVERITY_COLORS = {"High": "red", "Medium": "orange", "Low": "green"}
+SEVERITY_COLORS = {"Critical": "red", "High": "orange", "Medium": "yellow", "Low": "green"}
 
 
 def severity_badge(severity):
@@ -97,11 +97,12 @@ if get_recent_reports is not None:
 if not waiting_for(("get_dashboard_stats", get_dashboard_stats)):
     try:
         stats = get_dashboard_stats()
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Total Reports", stats.get("total", "–"))
         c2.metric("Reports Today", stats.get("today", "–"))
-        c3.metric("High Severity", stats.get("high_severity", "–"))
-        c4.metric("Locations", stats.get("locations", "–"))
+        c3.metric("🔴 Critical", stats.get("critical", "–"))
+        c4.metric("🟠 High", stats.get("high", "–"))
+        c5.metric("Active", stats.get("active", "–"))
     except Exception as e:
         st.error(f"Could not load stats: {e}")
 
