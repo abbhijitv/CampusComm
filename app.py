@@ -767,14 +767,14 @@ with refresh_col:
 
 campus_tab, department_tab = st.tabs(
     [
-        "📊 Campus Pulse",
+        "👥 Students / Staff",
         "🏢 Department Operations",
     ]
 )
 
 
 # ============================================================
-# CAMPUS PULSE TAB
+# STUDENTS / STAFF TAB
 # ============================================================
 
 with campus_tab:
@@ -1638,7 +1638,7 @@ with department_tab:
     )
 
     # Do not use st.stop() here because it can stop the entire
-    # script even when the user is primarily using Campus Pulse.
+    # script even when the user is primarily using Students / Staff.
     if department_ready:
 
         department = st.selectbox(

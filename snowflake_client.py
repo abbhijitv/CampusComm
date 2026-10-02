@@ -1,6 +1,7 @@
 """Snowflake database helpers for Campus Comm."""
 
 import os
+from functools import lru_cache
 
 import pandas as pd
 import snowflake.connector
@@ -40,8 +41,9 @@ def get_department_for_category(category):
 # Snowflake connection
 # ============================================================
 
+@lru_cache(maxsize=1)
 def get_connection():
-    """Create a connection to the Campus Comm Snowflake database."""
+    """Reuse one Snowflake connection so Streamlit reruns stay fast."""
 
     return snowflake.connector.connect(
         account=os.getenv("SNOWFLAKE_ACCOUNT"),
@@ -50,6 +52,7 @@ def get_connection():
         warehouse=os.getenv("SNOWFLAKE_WAREHOUSE"),
         database=os.getenv("SNOWFLAKE_DATABASE"),
         schema=os.getenv("SNOWFLAKE_SCHEMA"),
+        client_session_keep_alive=True,
     )
 
 
@@ -101,7 +104,6 @@ def save_report(
 
     finally:
         cursor.close()
-        conn.close()
 
 
 def get_recent_reports(limit=100):
@@ -156,7 +158,6 @@ def get_recent_reports(limit=100):
 
     finally:
         cursor.close()
-        conn.close()
 
 
 # ============================================================
@@ -230,7 +231,6 @@ def get_dashboard_stats():
 
     finally:
         cursor.close()
-        conn.close()
 
 
 # ============================================================
@@ -491,7 +491,6 @@ def sync_incidents(issues_df):
 
     finally:
         cursor.close()
-        conn.close()
 
 
 # ============================================================
@@ -565,7 +564,6 @@ def get_incidents():
 
     finally:
         cursor.close()
-        conn.close()
 
 
 # ============================================================
@@ -646,7 +644,6 @@ def get_department_incidents(
 
     finally:
         cursor.close()
-        conn.close()
 
 
 # ============================================================
@@ -772,6 +769,27 @@ def update_incident_status(
                 (incident_id,),
             )
 
+            # Mark the reports that belong to this incident as resolved too.
+            # This keeps Students / Staff, dashboard metrics, and AI context
+            # in sync with the department workflow. A later new report is
+            # inserted as ACTIVE and can reopen the incident automatically.
+            cursor.execute(
+                """
+                UPDATE CAMPUS_REPORTS
+                SET STATUS = 'RESOLVED'
+                WHERE UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
+                  AND (LOCATION, CATEGORY, COALESCE(SUBCATEGORY, 'Other')) = (
+                      SELECT
+                          LOCATION,
+                          CATEGORY,
+                          COALESCE(SUBCATEGORY, 'Other')
+                      FROM INCIDENTS
+                      WHERE INCIDENT_ID = %s
+                  )
+                """,
+                (incident_id,),
+            )
+
         # ----------------------------------------------------
         # NEW / RESET
         # ----------------------------------------------------
@@ -801,7 +819,6 @@ def update_incident_status(
 
     finally:
         cursor.close()
-        conn.close()
 
 
 # ============================================================
