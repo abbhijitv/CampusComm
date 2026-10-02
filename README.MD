@@ -424,6 +424,15 @@ Responsibilities:
 - Campus Briefing UI
 - Ask Campus Comm UI
 
+### Person 4 — Presentation / Pitch / Integration Support
+
+Files:
+
+```text
+README.md
+assets/
+presentation materials
+
 ---
 
 ## ⚙️ Local Setup
