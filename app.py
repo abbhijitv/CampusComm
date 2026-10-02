@@ -1601,7 +1601,9 @@ def set_status(
             status,
         )
 
-        refresh_incident_data()
+        # Status changes can affect both INCIDENTS and CAMPUS_REPORTS.
+        # Clear every dashboard cache so resolved issues disappear immediately.
+        refresh_all_data()
 
         st.rerun()
 

@@ -107,7 +107,7 @@ def save_report(
 
 
 def get_recent_reports(limit=100):
-    """Return recent active reports as a pandas DataFrame."""
+    """Return recent ACTIVE reports as a pandas DataFrame."""
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -165,7 +165,7 @@ def get_recent_reports(limit=100):
 # ============================================================
 
 def get_dashboard_stats():
-    """Return statistics used by the Streamlit dashboard."""
+    """Return ACTIVE-report statistics used by the dashboard."""
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -241,24 +241,13 @@ def sync_incidents(issues_df):
     """
     Synchronize detected dashboard issues into INCIDENTS.
 
-    Each unique incident is identified by:
-
+    Unique incident:
         LOCATION + CATEGORY + SUBCATEGORY
 
-    This allows multiple incidents to exist inside the same category.
+    Existing incidents are updated instead of duplicated.
 
-    Example:
-
-        Technology:
-            Hayden Library — Wi-Fi
-            Memorial Union — Security
-
-    Both remain separate incidents and both are routed to IT Support.
-
-    Existing incidents are updated rather than duplicated.
-
-    Resolved incidents are reopened if a newer report arrives after
-    the incident was resolved.
+    A resolved incident is reopened only if a newer ACTIVE report
+    appears after it was resolved.
     """
 
     if (
@@ -332,15 +321,7 @@ def sync_incidents(issues_df):
                 )
             )
 
-            # ------------------------------------------------
-            # Look for the same existing incident.
-            #
-            # IMPORTANT:
-            # Category alone is NOT enough.
-            #
-            # LOCATION + CATEGORY + SUBCATEGORY uniquely
-            # identifies the issue cluster for this demo.
-            # ------------------------------------------------
+            # Find matching incident
             cursor.execute(
                 """
                 SELECT
@@ -369,6 +350,7 @@ def sync_incidents(issues_df):
             # =================================================
             # Existing incident
             # =================================================
+
             if existing:
 
                 incident_id = existing[0]
@@ -382,10 +364,8 @@ def sync_incidents(issues_df):
 
                 new_status = current_status
 
-                # ---------------------------------------------
-                # Reopen a resolved incident if a new report
-                # arrives after it was resolved.
-                # ---------------------------------------------
+                # Reopen only if a NEW ACTIVE report arrived
+                # after the incident was previously resolved.
                 if (
                     current_status == "RESOLVED"
                     and resolved_at is not None
@@ -448,6 +428,7 @@ def sync_incidents(issues_df):
             # =================================================
             # New incident
             # =================================================
+
             else:
 
                 cursor.execute(
@@ -654,7 +635,14 @@ def update_incident_status(
     incident_id,
     new_status,
 ):
-    """Update an incident's department-response status."""
+    """
+    Update an incident's department-response status.
+
+    IMPORTANT:
+    When an incident becomes RESOLVED, its matching ACTIVE reports
+    are also marked RESOLVED. This removes them from Students / Staff,
+    metrics, emerging issues, and AI context.
+    """
 
     allowed_statuses = {
         "NEW",
@@ -682,13 +670,11 @@ def update_incident_status(
 
     try:
 
-        # ----------------------------------------------------
+        # ====================================================
         # ACKNOWLEDGED
-        # ----------------------------------------------------
-        if (
-            new_status
-            == "ACKNOWLEDGED"
-        ):
+        # ====================================================
+
+        if new_status == "ACKNOWLEDGED":
 
             cursor.execute(
                 """
@@ -710,13 +696,11 @@ def update_incident_status(
                 (incident_id,),
             )
 
-        # ----------------------------------------------------
+        # ====================================================
         # IN PROGRESS
-        # ----------------------------------------------------
-        elif (
-            new_status
-            == "IN_PROGRESS"
-        ):
+        # ====================================================
+
+        elif new_status == "IN_PROGRESS":
 
             cursor.execute(
                 """
@@ -738,14 +722,13 @@ def update_incident_status(
                 (incident_id,),
             )
 
-        # ----------------------------------------------------
+        # ====================================================
         # RESOLVED
-        # ----------------------------------------------------
-        elif (
-            new_status
-            == "RESOLVED"
-        ):
+        # ====================================================
 
+        elif new_status == "RESOLVED":
+
+            # First resolve the incident itself.
             cursor.execute(
                 """
                 UPDATE INCIDENTS
@@ -769,30 +752,67 @@ def update_incident_status(
                 (incident_id,),
             )
 
-            # Mark the reports that belong to this incident as resolved too.
-            # This keeps Students / Staff, dashboard metrics, and AI context
-            # in sync with the department workflow. A later new report is
-            # inserted as ACTIVE and can reopen the incident automatically.
+            # Get the exact issue identity.
             cursor.execute(
                 """
-                UPDATE CAMPUS_REPORTS
-                SET STATUS = 'RESOLVED'
-                WHERE UPPER(COALESCE(STATUS, 'ACTIVE')) = 'ACTIVE'
-                  AND (LOCATION, CATEGORY, COALESCE(SUBCATEGORY, 'Other')) = (
-                      SELECT
-                          LOCATION,
-                          CATEGORY,
-                          COALESCE(SUBCATEGORY, 'Other')
-                      FROM INCIDENTS
-                      WHERE INCIDENT_ID = %s
-                  )
+                SELECT
+                    LOCATION,
+                    CATEGORY,
+                    COALESCE(
+                        SUBCATEGORY,
+                        'Other'
+                    )
+                FROM INCIDENTS
+                WHERE INCIDENT_ID = %s
                 """,
                 (incident_id,),
             )
 
-        # ----------------------------------------------------
-        # NEW / RESET
-        # ----------------------------------------------------
+            incident_key = cursor.fetchone()
+
+            # Resolve every ACTIVE report belonging to
+            # this exact incident.
+            if incident_key is not None:
+
+                (
+                    incident_location,
+                    incident_category,
+                    incident_subcategory,
+                ) = incident_key
+
+                cursor.execute(
+                    """
+                    UPDATE CAMPUS_REPORTS
+
+                    SET STATUS = 'RESOLVED'
+
+                    WHERE UPPER(
+                        COALESCE(
+                            STATUS,
+                            'ACTIVE'
+                        )
+                    ) = 'ACTIVE'
+
+                    AND LOCATION = %s
+
+                    AND CATEGORY = %s
+
+                    AND COALESCE(
+                        SUBCATEGORY,
+                        'Other'
+                    ) = %s
+                    """,
+                    (
+                        incident_location,
+                        incident_category,
+                        incident_subcategory,
+                    ),
+                )
+
+        # ====================================================
+        # RESET TO NEW
+        # ====================================================
+
         else:
 
             cursor.execute(
@@ -816,6 +836,10 @@ def update_incident_status(
         conn.commit()
 
         return True
+
+    except Exception:
+        conn.rollback()
+        raise
 
     finally:
         cursor.close()
